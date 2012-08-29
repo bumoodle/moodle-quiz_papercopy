@@ -26,6 +26,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/mod/quiz/report/papercopy/printablelib.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/createcopies_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/importgrades_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/associateusers_form.php');
@@ -47,6 +48,11 @@ class quiz_papercopy_benign_row_exception extends exception {}
  */
 class quiz_papercopy_report extends quiz_default_report 
 {
+    /**
+     *  The table used for storing information about batches of produced papercopies.
+     */
+    const BATCH_TABLE = 'quiz_papercopy_batches';
+
     /**
      * @var stdClass $cm The course-module for the active quiz.
      */
@@ -206,7 +212,7 @@ class quiz_papercopy_report extends quiz_default_report
         $usages = explode(',', $batch->usages); 
 
         //if we haven't been instructed to preserve usages, delete the given paper copy
-        if(!$preseve_usages)
+        if(!$preserve_usages)
         {
             //delete each usage in the batch
             foreach($usages as $usage)
@@ -228,7 +234,7 @@ class quiz_papercopy_report extends quiz_default_report
         }
 
         //finally, delete the batch
-        $DB->delete_records('paper_batches', array('id' => $batch_id));
+        $DB->delete_records(self::BATCH_TABLE, array('id' => $batch_id));
     }
 
 
@@ -259,7 +265,7 @@ class quiz_papercopy_report extends quiz_default_report
         global $DB;
 
         //get a record set of all batches belonging to this quiz
-        $batches = $DB->get_recordset('paper_batches', array('quiz' => $this->quiz->id));
+        $batches = $DB->get_recordset(self::BATCH_TABLE, array('quiz' => $this->quiz->id));
 
         //verify each batch individually
         foreach($batches as $batch)
@@ -272,11 +278,11 @@ class quiz_papercopy_report extends quiz_default_report
 
             //if no elements remain, delete the batch
             if(count($new_usages) == 0)
-                $DB->delete_records('paper_batches', array('id' => $batch->id));
+                $DB->delete_records(self::BATCH_TABLE, array('id' => $batch->id));
 
             //if we've removed elements, update the database
             elseif(count($new_usages) < count($usages))
-                $DB->set_field('paper_batches', 'usages', implode(',', $new_usages), array('id' => $batch->id));
+                $DB->set_field(self::BATCH_TABLE, 'usages', implode(',', $new_usages), array('id' => $batch->id));
 
         }
 
@@ -446,7 +452,7 @@ class quiz_papercopy_report extends quiz_default_report
         //split the batch into usages
         $usages = explode(',',  $batch->usages);
 
-        $mform = new quiz_papercopy_associate_users($this->quiz->id, $this->cm, $batch_id, $this->context, $usages);
+        $mform = new quiz_papercopy_associate_users($this->quiz->id, $this->cm, $batch, $this->context, $usages);
         $mform->display();
 
     }
@@ -559,10 +565,10 @@ class quiz_papercopy_report extends quiz_default_report
         $record->quiz = $this->quiz->id;
 
         //and insert that information into the database
-        $id = $DB->insert_record('paper_batches', $record);
+        $id = $DB->insert_record(self::BATCH_TABLE, $record);
 
-        //build the URL to the paper copy PDF (or zip)
-        $url = new moodle_url('/mod/quiz/printable.php', array('id' => $this->cm->id, 'batch' => $id, 'zip' => ($copies != 1)));
+        // Get a URL at which this paper copy can be viewed.
+        $url = $this->get_paper_copy_url(array('id' => $this->cm->id, 'batch' => $id, 'zip' => ($copies != 1)));
 
         //add a refresh tag, so the given URL will automatically download
         echo html_writer::empty_tag('meta', array('http-equiv' => 'Refresh', 'content' => '0;'.$url->out(false)));
@@ -571,24 +577,35 @@ class quiz_papercopy_report extends quiz_default_report
         $this->display_index();
     }
 
+    /**
+     * Returns a URL at which the given paper copy can be viewed.
+     * 
+     * @param array $params     A list of get-parameters which should be included in the URL.
+     * @return moodle_url       The URL at which the paper copy can be viewed/downloaded.
+     */
+    public function get_paper_copy_url($params = array()) {
+
+        //build the URL to the paper copy PDF (or zip)
+        return new moodle_url('/mod/quiz/report/papercopy/printable.php', $params);
+    }
+
 
     /**
      * Returns a given user's name.
-     * TODO: Find the appropriate Moodle method, and use that instead.
      */
     public static function get_user_name($user_id, $default = 'EMPTY')
     {
         global $DB;
 
         //get the user's data
-        $userdata = $DB->get_record('user', array('id' => $user_id), 'lastname, firstname');
+        $user = $DB->get_record('user', array('id' => $user_id), 'lastname, firstname');
 
         //if no data was returned, return the default
-        if(!$userdata)
+        if(!$user)
             return $default;
 
         //and return their first/last name
-        return $userdata->lastname.', '.$userdata->firstname;
+        return fullname($user);
     }
 
     /**
@@ -1191,7 +1208,7 @@ class quiz_papercopy_report extends quiz_default_report
         global $DB;
 
         //get the appropriate batches from the database
-        return $DB->get_records('paper_batches', array('quiz' => $this->quiz->id));
+        return $DB->get_records(self::BATCH_TABLE, array('quiz' => $this->quiz->id));
     }
 
     /**
@@ -1207,7 +1224,7 @@ class quiz_papercopy_report extends quiz_default_report
         global $DB;
 
         //get the batch with the correct ID from the database
-        return $DB->get_record('paper_batches', array('quiz' => $this->quiz->id, 'id' => $batch_id));
+        return $DB->get_record(self::BATCH_TABLE, array('quiz' => $this->quiz->id, 'id' => $batch_id));
     }
 
     /**
@@ -1253,11 +1270,11 @@ class quiz_papercopy_report extends quiz_default_report
            $edit_url->params(array('action' => 'viewedit', 'batch' => (string)$batch->id));
 
            //and compose the answer key display URL
-           $answer_url = new moodle_url('/mod/quiz/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'keyonly' => '1' ));
+           $answer_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'keyonly' => '1' ));
 
            //compose the download URL
-           $download_url = new moodle_url('/mod/quiz/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'zip' => ($usage_count != 1)));
-           $download_with_keys_url = new moodle_url('/mod/quiz/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'key' => '1' ));
+           $download_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'zip' => ($usage_count != 1)));
+           $download_with_keys_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'key' => '1' ));
 
            //and add a table row
            $table->data[] = 

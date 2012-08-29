@@ -34,7 +34,7 @@ require_once($CFG->dirroot . '/mod/quiz/report/papercopy/report.php');
  *
  * @copyright  2011 Binghamton University
  * @author     Kyle Temkin <ktemkin@binghamton.edu>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or latee
  */
 class quiz_papercopy_associate_users extends moodleform 
 {
@@ -45,7 +45,7 @@ class quiz_papercopy_associate_users extends moodleform
     protected $cm;
     protected $context;
 
-    public function __construct($id, $cm, $batch_id, $context, $usages) 
+    public function __construct($id, $cm, $batch, $context, $usages) 
     {
         global $CFG, $DB;
 
@@ -54,10 +54,9 @@ class quiz_papercopy_associate_users extends moodleform
         $this->cm = $cm;
         $this->usages = $usages;
         $this->context = $context;
+        $this->batch = $batch;
 
-        $this->batch = $DB->get_record('paper_batches', array('id' => $batch_id));
-
-        parent::__construct($CFG->wwwroot . '/mod/quiz/report.php?id='.$this->cm->id.'&mode=papercopy&batch='.$batch_id, null, 'post');
+        parent::__construct($CFG->wwwroot . '/mod/quiz/report.php?id='.$this->cm->id.'&mode=papercopy&batch='.$this->batch->id, null, 'post');
     }
 
     /**
@@ -195,6 +194,7 @@ class quiz_papercopy_associate_users extends moodleform
         if($associated_user !== false)
         {
             //get the user's name
+            // TODO: get rid of this dependency?
             $username = quiz_papercopy_report::get_user_name($associated_user);
 
             //and output the disassociation prompt

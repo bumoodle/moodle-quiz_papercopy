@@ -25,6 +25,15 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version  = 2011051200;
+$plugin->version  = 2012082904;
 $plugin->requires = 2011060313;
 $plugin->component = 'quiz_papercopy';
+
+$plugin->dependencies = array
+    (
+        'theme_pdf' => 2011102700
+    );
+
+$plugin->stability = MATURITY_ALPHA;
+
+

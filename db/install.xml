@@ -1,24 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/quiz/report/papercopy/db" VERSION="20111225" COMMENT="XMLDB file for Moodle mod/quiz/report/papercopy"
+<XMLDB PATH="mod/quiz/report/papercopy/db" VERSION="20120829" COMMENT="XMLDB file for Moodle mod/quiz/report/papercopy"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
-    <TABLE NAME="papercopy" COMMENT="Default comment for papercopy, please edit me" NEXT="paper_batches">
+    <TABLE NAME="quiz_papercopy_batches" COMMENT="List of batch-created paper copies of quizzes.">
       <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true"/>
-      </FIELDS>
-      <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-      </KEYS>
-    </TABLE>
-    <TABLE NAME="paper_batches" COMMENT="List of batch-created paper copies of quizzes." PREVIOUS="papercopy">
-      <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" UNSIGNED="true" SEQUENCE="true" NEXT="quiz"/>
-        <FIELD NAME="quiz" TYPE="int" LENGTH="4" NOTNULL="false" UNSIGNED="true" SEQUENCE="false" COMMENT="The quiz from which this batch was created." PREVIOUS="id" NEXT="usages"/>
-        <FIELD NAME="usages" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="comma-separated list of usages created by this batch" PREVIOUS="quiz" NEXT="delivery_method"/>
-        <FIELD NAME="delivery_method" TYPE="int" LENGTH="2" NOTNULL="false" UNSIGNED="true" SEQUENCE="false" COMMENT="integer representation of a delivery method mode" PREVIOUS="usages" NEXT="include_key"/>
-        <FIELD NAME="include_key" TYPE="int" LENGTH="1" NOTNULL="false" UNSIGNED="true" SEQUENCE="false" COMMENT="non-zero if a key should be included with the printout" PREVIOUS="delivery_method"/>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" NEXT="quiz"/>
+        <FIELD NAME="quiz" TYPE="int" LENGTH="4" NOTNULL="false" SEQUENCE="false" COMMENT="The quiz from which this batch was created." PREVIOUS="id" NEXT="usages"/>
+        <FIELD NAME="usages" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="comma-separated list of usages created by this batch" PREVIOUS="quiz" NEXT="prerendered"/>
+        <FIELD NAME="prerendered" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="A Moodle pathnamehash identifying a prerendered copy of this batch, if one exists." PREVIOUS="usages" NEXT="prerendered_with_key"/>
+        <FIELD NAME="prerendered_with_key" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Pathnamehash of a prerendered file which contains answer keys with each attempt." PREVIOUS="prerendered" NEXT="prerendered_key_only"/>
+        <FIELD NAME="prerendered_key_only" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="The pathnamehash of a prerendered batch which contains answer keys only." PREVIOUS="prerendered_with_key"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

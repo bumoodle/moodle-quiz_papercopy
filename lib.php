@@ -9,10 +9,34 @@ require_once($CFG->dirroot.'/theme/pdf/pdf_renderers/core_pdf_renderer.php');
 include_once($CFG->dirroot . '/lib/htmlpurifier/HTMLPurifier.safe-includes.php');
 include_once($CFG->dirroot .'/mod/quiz/report/papercopy/lib/zipstream.php');
 
-ini_set('xdebug.show_local_vars', 'on');
-ini_set('xdebug.collect_vars', 'on');
-ini_set('xdebug.collect_params', '4');
-ini_set('xdebug.dump_globals', 'on');
+/**
+ * Virtual "enum" class, which specifies how a 
+ * 
+ * @package 
+ * @version $id$
+ * @copyright 2011, 2012 Binghamton University
+ * @author Kyle Temkin <ktemkin@binghamton.edu> 
+ * @license GNU Public License, {@link http://www.gnu.org/copyleft/gpl.html}
+ */
+abstract class quiz_papercopy_batch_modes  {
+    
+    /**
+     *  
+     */
+    const NORMAL = '';
+
+    /**
+     *  
+     */
+    const WITHKEY = 'withkey';
+
+    /**
+     *  
+     */
+    const KEY_ONLY = 'key';
+
+
+}
 
 
 class question_display_options_pdf extends question_display_options
@@ -300,6 +324,7 @@ class printable_copy_helper
         //update the batch row to contain the prerendered file's pathnamehash
         $batch_info = array('id' => $batch_id, 'prerendered' => $file->get_pathnamehash());
 
+
         $DB->update_record(self::get_batch_table(), $batch_info);
     }
 
@@ -408,29 +433,37 @@ class printable_copy_helper
             //get a new Moodle file storage area
             $fs = get_file_storage();
 
+            // Delete any existing pre-rendered copies for this batch which have the same cache-id.
+            $fs->delete_area_files($this->context->id, 'quiz_papercopy', 'prerendered', $cache_id);
+
            //populate the file information
             $file_info =
                 array
                 (
                     'contextid' => $this->context->id,
-                    'component' => 'mod_quiz',
-                    'filearea' => 'papercopy',
+                    'component' => 'quiz_papercopy',
+                    'filearea' => 'prerendered',
                     'itemid' =>  $cache_id,//$this->quiz->id,
                     'filepath' => '/',
                     'filename' => $prefix.'.zip'
                 );
 
             // If this file (or an identical file) has not already been stored in the Moodle file database...
-            if(!$fs->file_exists($this->context->id, 'mod_quiz', 'papercopy', $cache_id, '/', $prefix.'.zip')) {
+            //if($fs->file_exists($this->context->id, 'mod_quiz', 'papercopy', $cache_id, '/', $prefix.'.zip')) {
 
-                // ... copy the file into the Moodle datastore.
-                $file = $fs->create_file_from_pathname($file_info, $target_zip);
+            //}
 
+            // ... copy the file into the Moodle datastore.
+            $file = $fs->create_file_from_pathname($file_info, $target_zip);
+
+        /*
             }
             // Otherwise, retrieve the existing file.
             else {
                 $file = $fs->get_file_instance((object)$file_info);
+                $file->replace_content_with
             }
+        */
 
             //remove the temporary copy
             unlink($target_zip);
@@ -456,6 +489,12 @@ class printable_copy_helper
         }
 
     }
+
+    public static function get_filearea_name($key = false) 
+    {
+
+    }
+     
 
     public function print_question_usage_by_activities($quba_array, $key = false, $key_only = false)
     {

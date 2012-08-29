@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['papercopy'] = 'Paper Copies';
+$string['quiz_papercopy'] = $string['pluginname'] = $string['papercopy'] = 'Paper Copies';
 $string['massuploadattempts'] = 'Mass Upload Attempts';
 $string['createcopies'] = 'Create Copies';
 $string['modifyattempts'] = 'Grade, Modify, & Delete Attempts';
