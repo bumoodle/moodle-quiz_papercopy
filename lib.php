@@ -18,7 +18,7 @@ include_once($CFG->dirroot .'/mod/quiz/report/papercopy/lib/zipstream.php');
  * @author Kyle Temkin <ktemkin@binghamton.edu> 
  * @license GNU Public License, {@link http://www.gnu.org/copyleft/gpl.html}
  */
-abstract class quiz_papercopy_batch_modes  {
+abstract class quiz_papercopy_batch_mode  {
     
     /**
      *  
@@ -28,7 +28,7 @@ abstract class quiz_papercopy_batch_modes  {
     /**
      *  
      */
-    const WITHKEY = 'withkey';
+    const WITH_KEY = 'withkey';
 
     /**
      *  
@@ -101,6 +101,16 @@ class printable_copy_helper
     protected $context;
     protected $course;    
 
+    
+    /**
+     *  The minimum amount of time which should elapse between "detached" pre-renders, in seconds.
+     *  
+     *  If a user has not requested a pre-render in the last MIN_TIME_BETWEEN_PRERENDERS seconds, then they can disconnect from the server
+     *  and a pre-render will continue in the background.
+     *
+     */
+    const MIN_TIME_BETWEEN_PRERENDERS = 600; // 10 minutes
+
     public function __construct($quiz, $context = null, $course = null)
     {
         $this->quiz = $quiz;
@@ -149,7 +159,7 @@ class printable_copy_helper
         $print_helper = new self($quiz, $context);
 
         //and use it to print the given quiz
-        $print_helper->print_quba($quba_id, false, false, false, true);
+        $print_helper->print_quba($quba_id, quiz_papercopy_batch_mode::NORMAL, false, true);
 
     }
 
@@ -230,7 +240,7 @@ class printable_copy_helper
         return str_replace('{testid}', str_pad($id, 6, '0', STR_PAD_LEFT), $intro);
     }
 
-    public function print_batch($batch_id, $key = false, $key_only = false, $to_zip = false)
+    public function print_batch($batch_id, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $to_zip = false)
     {
         global $DB;
        
@@ -247,22 +257,22 @@ class printable_copy_helper
         if($to_zip)
         {
             //zip each of the QUBAs and send them to the user
-            $cached_file = $this->zip_question_usage_by_activities($usage_ids, $key, $key_only, true, 'quiz', $batch_id);
+            $cached_file = $this->zip_question_usage_by_activities($usage_ids, $batch_mode, true, 'quiz', $batch_id);
 
             //save the cached file for future use
-            $this->save_prerendered($batch_id, $cached_file);
+            $this->save_prerendered($batch_id, $cached_file, $batch_mode);
         }
         //otherwise, send a single PDF containing the entire batch
         else
         {
-            $this->print_question_usage_by_activities($usage_ids, $key, $key_only);
+            $this->print_question_usage_by_activities($usage_ids, $batch_mode);
         }
     }
    
-    public function interactive_prerender($batch_id, $force_rerender = false)
+    public function interactive_prerender($batch_id, $batch_mode, $force_rerender = false)
     {
         global $OUTPUT, $PAGE;
-        
+
         //set up the page for rendering
         $PAGE->navbar->add('Paper Copies');
         $PAGE->set_pagetype('report');
@@ -290,7 +300,7 @@ class printable_copy_helper
     /**
      * Pre-renders a batch of paper copies; intended to be run in the background.
      */
-    public function prerender_batch($batch_id, $force_rerender, $progress_callback)
+    public function prerender_batch($batch_id, $force_rerender, $progress_callback, $batch_mode = quiz_papercopy_batch_mode::NORMAL)
     {
         global $DB;
 
@@ -305,10 +315,10 @@ class printable_copy_helper
         $usage_ids = explode(',', $batch_info['usages']);
 
         //create a zip file containing each of the batch copies
-        $file = $this->zip_question_usage_by_activities($usage_ids, false, false, false, 'quiz', $batch_id, $progress_callback);
+        $file = $this->zip_question_usage_by_activities($usage_ids, $batch_mode, false, 'quiz', $batch_id, $progress_callback);
 
         //and store the prerendered file in the batch table
-        $this->save_prerendered($batch_id, $file);
+        $this->save_prerendered($batch_id, $file, $batch_mode);
 
         //store the file's pathnamehash (Moodle uses these like IDs) in the batch information
         //$batch_info['prerendered'] = $file->get_pathnamehash();
@@ -317,15 +327,12 @@ class printable_copy_helper
         //$DB->update_record(self::get_batch_table(), $batch_info);
     }
 
-    protected function save_prerendered($batch_id, $file)
+    protected function save_prerendered($batch_id, $file, $batch_mode)
     {
         global $DB;
 
-        //update the batch row to contain the prerendered file's pathnamehash
-        $batch_info = array('id' => $batch_id, 'prerendered' => $file->get_pathnamehash());
-
-
-        $DB->update_record(self::get_batch_table(), $batch_info);
+        // Update the database field which corresponds to the type of batch we generated, ensuring that it points to the most recently rendered item.
+        $DB->set_field(self::get_batch_table(), self::get_prerender_filearea($batch_mode), $file->get_pathnamehash(), array('id' => $batch_id));
     }
 
     public function print_prerendered_batch($batch_id)
@@ -363,7 +370,7 @@ class printable_copy_helper
     }
 
 
-    public function zip_question_usage_by_activities($quba_array, $key = false, $key_only = false, $output = true, $prefix='quiz', $cache_id = 0, $progress_callback = null, $save = true)
+    public function zip_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $output = true, $prefix='quiz', $cache_id = 0, $progress_callback = null, $save = true, $allow_disconnect = true)
     {
         global $DB;
 
@@ -384,8 +391,11 @@ class printable_copy_helper
                 // Ensure that the file does not exist.
                 unlink($target_zip);
 
-                //FIXME FIXME FIXME - skew this? switch to a work queue?
-                ignore_user_abort(true);
+                // If the "allow_disconnect" option is set, then continue processing even if the user disconnects.
+                if($allow_disconnect) {
+                    ignore_user_abort(true);
+                }
+
             }
 
             $zip = new CompatibleZipStream('PaperCopies.zip', $opt);
@@ -411,7 +421,7 @@ class printable_copy_helper
             set_time_limit(1024);
 
             //convert the QUBA into a PDF
-            $pdf = $this->print_quba_to_pdf($quba_id, $key, $key_only);
+            $pdf = $this->print_quba_to_pdf($quba_id, $batch_mode);
 
             //debug
             error_log("PDF copy ".$quba_id."\n");
@@ -448,22 +458,8 @@ class printable_copy_helper
                     'filename' => $prefix.'.zip'
                 );
 
-            // If this file (or an identical file) has not already been stored in the Moodle file database...
-            //if($fs->file_exists($this->context->id, 'mod_quiz', 'papercopy', $cache_id, '/', $prefix.'.zip')) {
-
-            //}
-
-            // ... copy the file into the Moodle datastore.
+                        // ... copy the file into the Moodle datastore.
             $file = $fs->create_file_from_pathname($file_info, $target_zip);
-
-        /*
-            }
-            // Otherwise, retrieve the existing file.
-            else {
-                $file = $fs->get_file_instance((object)$file_info);
-                $file->replace_content_with
-            }
-        */
 
             //remove the temporary copy
             unlink($target_zip);
@@ -473,30 +469,43 @@ class printable_copy_helper
 
         } else {
 
-            /*
-            //set the content type to application, octet stream
-            header('Content-Type: application/zip');
-
-            //and apply a matching filename
-            header('Content-Disposition: attachment; filename="'.$prefix.'.zip"');
-
-            //then, output the body of the zip file
-            readfile($target_zip);
-             */
-            
             //finally, remove the zip file
-            unlink($target_zip);
+            @unlink($target_zip);
         }
 
     }
 
-    public static function get_filearea_name($key = false) 
+    /**
+     * Get the file-area which should store the pre-rendered version of this file.
+     * 
+     * @param string $key_mode  A member of the qtype_papercopy_batch pseudo-enumeration 
+     * @return string           The file-area name in which the given file should be stored.
+     */
+    public static function get_prerender_filearea($key_mode) 
     {
+        switch($key_mode) {
 
+            // Normal mode: i.e. just the batch itself, with no answer keys 
+            case quiz_papercopy_batch_mode::NORMAL:
+                return 'prerendered';
+
+            // With-key mode: the batch with its answer keys.
+            case quiz_papercopy_batch_mode::WITH_KEY:
+                return 'prerendered_with_key';
+
+            // Key-only mode: just the answer keys for the batch.
+            case quiz_papercopy_batch_mode::KEY_ONLY:
+                return 'prerendered_key_only';
+
+            // Fail-safe case- return null, which should throw an exception when used.
+            default:
+                return null;
+
+        } 
     }
      
 
-    public function print_question_usage_by_activities($quba_array, $key = false, $key_only = false)
+    public function print_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL) 
     {
         //set up PDF printing
         self::set_up_pdf();
@@ -508,11 +517,11 @@ class printable_copy_helper
             set_time_limit(1024);
 
             //then print the QUBA
-            $this->print_question_usage_by_activity($quba_id, $key, $key_only);
+            $this->print_question_usage_by_activity($quba_id, $batch_mode);
         }
     }
 
-    public function print_question_usage_by_activity($quba_id, $key = false, $key_only = false)
+    public function print_question_usage_by_activity($quba_id, $batch_mode = quiz_papercopy_batch_mode::NORMAL)
     {
 
         //set up PDF printing
@@ -522,19 +531,19 @@ class printable_copy_helper
         require_capability('mod/quiz:viewreports', $this->context);
         
         //and call the internal printing method
-        $this->print_quba($quba_id, $key, $key_only);
+        $this->print_quba($quba_id, $batch_mode);
     }
     
     /**
      * Prints a given QUBA to a PDF object using the core PDF renderer, and returns the PDF.
      */
-    protected function print_quba_to_pdf($quba_id, $key, $key_only, $include_barcodes = true, $include_intro = true)
+    protected function print_quba_to_pdf($quba_id, $batch_mode, $include_barcodes = true, $include_intro = true)
     {
         //start output buffering
         ob_start();
 
         //print the actual QUBA
-        $this->print_quba($quba_id, $key, $key_only, $include_barcodes, $include_intro);
+        $this->print_quba($quba_id, $batch_mode, $include_barcodes, $include_intro);
 
         //terminate output buffering, and retrieve the QUBA's data
         $contents = ob_get_clean();
@@ -545,7 +554,7 @@ class printable_copy_helper
     }
 
 
-    protected function print_quba($quba_id, $key, $key_only, $include_barcodes = true, $include_intro = true)
+    protected function print_quba($quba_id, $batch_mode, $include_barcodes = true, $include_intro = true)
     {
         //get the default question display information
         $options = new question_display_options_pdf();
@@ -557,7 +566,7 @@ class printable_copy_helper
         $slots = $usage->get_slots();
 
         //if we're not _only_ outputting a key, output the core of the quesiton
-        if(!$key_only)
+        if($batch_mode !== quiz_papercopy_batch_mode::KEY_ONLY)
         {
 
             //start a new copy with the given margins
@@ -596,7 +605,7 @@ class printable_copy_helper
         }
 
         //if a key has been requested, output it as well
-        if($key || $key_only)
+        if($batch_mode == quiz_papercopy_batch_mode::KEY_ONLY || $batch_mode == quiz_papercopy_batch_mode::WITH_KEY)
         {
            //start a new copy with the given margins
             echo html_writer::start_tag('page', array('backtop' => '9mm', 'backbottom' => '0mm', 'backleft' => '0mm', 'backright' => '8mm'));
@@ -612,7 +621,7 @@ class printable_copy_helper
             }
 
             //bookmark, for easy access from a PDF viewer
-            echo html_writer::tag('bookmark', '', array('title' => get_string('answerkeynumber', 'quiz_papercopy', $id), 'level' => !$key_only));
+            echo html_writer::tag('bookmark', '', array('title' => get_string('answerkeynumber', 'quiz_papercopy', $id), 'level' => ($batch_mode !== quiz_papercopy_batch_mode::KEY_ONLY)));
 
             //print the quiz's introduction
             echo html_writer::tag('p', get_string('answerkeyfortestid', 'quiz_papercopy', $id), array('style' => 'font-weight:bold;'));

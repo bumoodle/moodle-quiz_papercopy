@@ -76,6 +76,23 @@
 #   # write archive footer to stream
 #   $zip->finish();
 #
+
+/**
+ * An exception which is throws 
+ * 
+ * @uses exception
+ * @package 
+ * @version $id$
+ * @copyright 2011, 2012 Binghamton University
+ * @author Kyle Temkin <ktemkin@binghamton.edu> 
+ * @license GNU Public License, {@link http://www.gnu.org/copyleft/gpl.html}
+ */
+class zipstream_file_exception extends exception {
+
+}
+
+
+
 class ZipStream {
   const VERSION = '0.2.2';
 
@@ -167,8 +184,21 @@ class ZipStream {
 
     //~ktemkin
     //If save_to was specified, save the file externally.
-    if(array_key_exists('save_to', $opt) && $opt['save_to'])
-        $this->outfile = fopen($opt['save_to'], 'x');
+    if(array_key_exists('save_to', $opt) && $opt['save_to']) {
+
+        // Create a local handle to the given file...
+        $this->outfile = @fopen($opt['save_to'], 'x');
+
+        // If we weren't able to open the file, throw an exception...
+        if($this->outfile === false) {
+
+            // Get the last error that occurred in PHP; which should have occurred in @fopen
+            $error_details = error_get_last();
+
+            // And wrap the error gracefully in an catchable exception.
+            throw new zipstream_file_exception($error_details['message']);
+        }
+    }
 
     $this->output_name = $name;
     

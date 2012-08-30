@@ -11,6 +11,7 @@
 
 require_once('../../../../config.php');
 require_once('lib.php');
+require_once('report.php');
 
 //two possible core identifiers: attempt ID, or coursemodule ID
 $attempt_id = optional_param('attempt', 0, PARAM_INT);
@@ -34,18 +35,17 @@ if($attempt_id) {
     printable_copy_helper::print_attempt($attempt_id);
 }
 //otherwise, fall back on the coursemoudule ID
-elseif($cm_id)
-{
+elseif($cm_id) {
+
     //create a new printable_copy_helper
     $printer = printable_copy_helper::create_from_coursemodule($cm_id);
 
     //retrieve optional arguments for the printer, which are only appropriate for the report view
-    $key = optional_param('key', false, PARAM_BOOL);
-    $key_only = optional_param('keyonly', false, PARAM_BOOL);
+    $batch_mode = optional_param('mode', '', PARAM_ALPHA);
 
     //if a QUBA was specified, print it, and only it (the helper methods check permissions)
     if($quba_id) {
-        $printer->print_question_usage_by_activity($quba_id, $key, $key_only);
+        $printer->print_question_usage_by_activity($quba_id, $batch_mode);
     }
     //otherwise, use a batch, if provided
     else if($batch_id) {
@@ -54,26 +54,45 @@ elseif($cm_id)
         //(the print_batch function will handle purification)
         core_pdf_renderer::$do_not_purify = true;
 
+        // If "force-rerender" is _not_ set, and a pre-rendered batch exists,
+        // (e.g. this batch has been rendered before), then print the pre-rendered batch.
+        // 
+        // TODO: Perhaps don't run this part if we're going to pre-render, but instead print an "already rendered" 
+        // message?
         if(!$force_rerender) {
-            //attempt to print an existing copy, if one exists
+
+            // If a pre-rendered batch exits, print it. Otherwise, this will return false.
             $printed = $printer->print_prerendered_batch($batch_id);
             
-            if($printed)
+            // If we printed a batch, then terminate this script's execution.
+            // If we don't abort here, Moodle will append a blank PDF to the end of our full PDF file.
+            if($printed) {
                 exit();
+            }
         }
 
+        // If the pre-render option is set, then begin executing the "interactive pre-renderer", which 
+        // updates the user on progress instead of sending the rendered file. The file can then be downloaded later.
+        // (This is excellent for starting a long render operation from a mobile phone.)
         if($prerender) {
 
-            //if we didn't find an existing copy, start the interactive pre-renderer
-            if(!$printed)
-                $printer->interactive_prerender($batch_id, true);
+            // Compose the URL at which this page is located...
+            $url = quiz_papercopy_report::get_paper_copy_url(array('id' => $cm_id, 'batch' => $batch, 'mode' => $batch_mode, 'prerender' => '1'));
+
+            // ... and inform the page's renderer. Note that the pre-renderer does not use the render-to-PDF theme
+            $PAGE->set_url($url).
+
+            // Start the interactive pre-renderer.
+            $printer->interactive_prerender($batch_id, $batch_mode, true);
             
-            //never continue to the theme
+            // Once pre-render has completed, abort; so we do not continue to the render-to-pdf theme.
+            // TODO: force this to the 
             exit();
 
         } else {
+
             //print the entire batch
-            $printer->print_batch($batch_id, $key, $key_only, $as_zip);
+            $printer->print_batch($batch_id, quiz_papercopy_batch_mode::NORMAL, $as_zip);
         }
 
         //if we just finished printing a zip,
@@ -83,13 +102,14 @@ elseif($cm_id)
     }
 
     //if neither was provided, we can't continue; print an error
-    else
-        print_error('missingparam', 'error', '', 'usage');
+    else {
+        throw new moodle_exception('missingparam', 'error', '', 'usage');
+    }
 }
 else
 {
     //if neither was provided, throw a missing parameter error
-    print_error('missingparam', 'error', '', 'id');
+    throw new moodle_exception('missingparam', 'error', '', 'id');
 }
 
 

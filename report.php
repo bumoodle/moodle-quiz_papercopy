@@ -26,7 +26,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/mod/quiz/report/papercopy/printablelib.php');
+require_once($CFG->dirroot . '/mod/quiz/report/papercopy/lib.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/createcopies_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/importgrades_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/associateusers_form.php');
@@ -99,7 +99,7 @@ class quiz_papercopy_report extends quiz_default_report
         $this->quizobj->load_questions();
 
         //get the current action, if one has been specified
-        $action = optional_param('action', false, PARAM_ACTION);
+        $action = optional_param('action', false, PARAM_ALPHA);
 
         //start output
         $this->print_header_and_tabs($cm, $course, $quiz, 'grading');
@@ -568,7 +568,7 @@ class quiz_papercopy_report extends quiz_default_report
         $id = $DB->insert_record(self::BATCH_TABLE, $record);
 
         // Get a URL at which this paper copy can be viewed.
-        $url = $this->get_paper_copy_url(array('id' => $this->cm->id, 'batch' => $id, 'zip' => ($copies != 1)));
+        $url = self::get_paper_copy_url(array('id' => $this->cm->id, 'batch' => $id, 'zip' => ($copies != 1)));
 
         //add a refresh tag, so the given URL will automatically download
         echo html_writer::empty_tag('meta', array('http-equiv' => 'Refresh', 'content' => '0;'.$url->out(false)));
@@ -583,7 +583,7 @@ class quiz_papercopy_report extends quiz_default_report
      * @param array $params     A list of get-parameters which should be included in the URL.
      * @return moodle_url       The URL at which the paper copy can be viewed/downloaded.
      */
-    public function get_paper_copy_url($params = array()) {
+    public static function get_paper_copy_url($params = array()) {
 
         //build the URL to the paper copy PDF (or zip)
         return new moodle_url('/mod/quiz/report/papercopy/printable.php', $params);
@@ -1270,11 +1270,11 @@ class quiz_papercopy_report extends quiz_default_report
            $edit_url->params(array('action' => 'viewedit', 'batch' => (string)$batch->id));
 
            //and compose the answer key display URL
-           $answer_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'keyonly' => '1' ));
+           $answer_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'mode' => 'key' ));
 
            //compose the download URL
            $download_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'zip' => ($usage_count != 1)));
-           $download_with_keys_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'key' => '1' ));
+           $download_with_keys_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'mode' => 'withkey' ));
 
            //and add a table row
            $table->data[] = 
