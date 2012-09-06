@@ -26,6 +26,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/mod/quiz/report/default.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/lib.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/createcopies_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/importgrades_form.php');
