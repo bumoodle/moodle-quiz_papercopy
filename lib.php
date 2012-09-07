@@ -221,19 +221,25 @@ class printable_copy_helper
         $PAGE->set_pagelayout('report');
 
         //start rendering the PDF
-        $OUTPUT->header();
+        $test = $OUTPUT->header();
+        echo $test;
     }
 
     public static function render_pdf()
     {
         global $OUTPUT;
 
-        $OUTPUT->footer();
+        //
+        webkit_pdf::send_embed_headers();
+
+        //Finish rendering the PDF; and stream it to the user.
+        echo $OUTPUT->footer();
     } 
 
     public static function insert_ids($intro, $id)
     {
         //insert any additional barcodes requested
+        //TODO: replace with a barcode object
         $intro = str_replace('{testbarcode}', '<barcode type="EAN13" value="'.$id.'" label="none" style="width:20px; height: 5px;></barcode>', $intro);
 
         //and insert the testid, where appropriate
@@ -277,6 +283,7 @@ class printable_copy_helper
         $PAGE->navbar->add('Paper Copies');
         $PAGE->set_pagetype('report');
 
+        // Start rendering the main, non-PDF page.
         echo $OUTPUT->header();
 
         //TODO: implement
@@ -287,6 +294,7 @@ class printable_copy_helper
         //perform the actual prerender
         $this->prerender_batch($batch_id, $force_rerender, array($this, 'interactive_prerender_callback'));
 
+        // Finish rendering the page.
         echo $OUTPUT->footer();
     }
 
