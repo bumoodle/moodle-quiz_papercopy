@@ -31,9 +31,10 @@ $plugin->component = 'quiz_papercopy';
 
 $plugin->dependencies = array
     (
-        'theme_pdf' => 2011102700
+        'theme_pdf' => 2011102700,
+        'local_quizsync' => 2012090500
     );
 
-$plugin->stability = MATURITY_ALPHA;
+$plugin->stability = MATURITY_BETA;
 
 

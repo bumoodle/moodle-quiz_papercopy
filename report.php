@@ -32,6 +32,9 @@ require_once($CFG->dirroot . '/mod/quiz/report/papercopy/createcopies_form.php')
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/importgrades_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/associateusers_form.php');
 
+// Use the Quiz Synchronization plugin.
+require_once($CFG->dirroot . '/local/quizsync/synclib.php');
+
 //simple, internal exceptions- FIXME: add descriptions?
 class quiz_papercopy_could_not_identify_exception extends exception {}
 class quiz_papercopy_invalid_usage_id_exception extends exception {}
@@ -405,7 +408,7 @@ class quiz_papercopy_report extends quiz_default_report
         } 
 
         //wrap it with a new quiz attempt, and finish the quiz
-        return $this->build_attempt_from_usage($usage, $user_id, $finish_after, true);
+        return quiz_synchronization::build_attempt_from_usage($usage, $this->quizobj, $user_id, $finish, true);
  
     }
 
@@ -690,7 +693,7 @@ class quiz_papercopy_report extends quiz_default_report
         $target_user = $this->user_id_from_scantron($set);
 
         //create a new attempt object, if requested, immediately close it, grading the attempt
-        $attempt = $this->build_attempt_from_usage($usage, $target_user, $finish, true);
+        $attempt = quiz_synchronization::build_attempt_from_usage($usage, $this->quizobj, $target_user, $finish, true);
 
         //return the user's grade and id, on success
         return array('grade' => $attempt->sumgrades, 'user' => $attempt->userid);
@@ -756,88 +759,6 @@ class quiz_papercopy_report extends quiz_default_report
         //otherwise, match the student without it
         else
             return $last[0] == $student_name[0] && $first[0] == $student_name[1];
-    }
-
-    /**
-     * Creates a normal quiz attempt from a (typically paper copy) usage, so the student can view the results of a paper test
-     * as though they had taken it on Moodle, including feedback. This also allows one to theoretically allow subsequent attempts
-     * at the same quiz on Moodle, using options such as "each attempt buiilds on the last", building on the paper copies.
-     *
-     * @param question_usage_by_actvitity   $usage      The question_usage_by_activity object which composes the paper copy.
-     * @param int                           $user_id    If provided, the attempt will be owned by the user with the given ID, instead of the current user.
-     * @param bool                          $finished   If set, the attempt will finished and committed to the database as soon as it is created; this assumes the QUBA has already been populated with responses.
-     * @param bool                          $commit     If set, the attempt will be committed to the database after creation. If $finished is set, the value of $commit will be ignored, and the row will be committed regardless.
-     *
-     * @return array      Returns the newly created attempt's raw data. (In other words, does not return a quiz_attempt object.)
-     */
-    protected function build_attempt_from_usage($usage, $user_id = null, $finished = false, $commit = false, $attempt_number = null)
-    {
-        global $DB, $USER;
-
-        //get the current time
-        $time_now = time();
-
-        //start a new attempt
-        $attempt = new stdClass();
-        $attempt->quiz = $this->quiz->id;
-        $attempt->preview = 0;
-        $attempt->timestart = $time_now;
-        $attempt->timefinish = 0;
-        $attempt->timemodified = $time_now;
-
-        //associate the attempt with the usage
-        $attempt->uniqueid = $usage->get_id();
-
-        //and set the attempt's owner, if specified
-        if($user_id !== null)
-            $attempt->userid = $user_id;
-        //otherwise, use the current user
-        else
-            $attempt->userid = $USER->id;
-
-        //if no attempt number was specified, automatically detect one
-        if($attempt_number === null)
-        {
-            //determine the maximum attempt value for that user/quiz combo
-            $max_attempt = $DB->get_records_sql('SELECT max("attempt") FROM {quiz_attempts} WHERE "userid" = ? AND "quiz" = ?', array($user_id, $this->quiz->id));
-            $max_attempt = reset($max_attempt);
-
-            //if no attempts exist, let this be the first attempt
-            if($max_attempt->max == null)
-                $attempt_number = 1;
-
-            //otherwise, use the next available attempt number
-            else
-                $attempt_number = $max_attempt->max + 1;
-        }
-
-        //set the attempt number
-        $attempt->attempt = $attempt_number;
-
-        //build the attempt layout 
-        $attempt->layout = implode(',', $usage->get_slots()); 
-
-        //if requested, commit the attempt to the database
-        if($commit || $finished)
-        {
-            //and use it to save the usage and attempt
-            question_engine::save_questions_usage_by_activity($usage);
-            $attempt->id = $DB->insert_record('quiz_attempts', $attempt);
-        }
-
-        //if requested, finish the attempt immediately
-        if($finished)
-        {
-            $raw_course = $DB->get_record('course', array('id' => $this->course->id));
-
-            //wrap the attempt data in an quiz_attempt object, and ask it to finish
-            $attempt_object = new quiz_attempt($attempt, $this->quiz, $this->cm, $this->course, true);
-            $attempt_object->finish_attempt($time_now);
-        }
-
-
-        //return the attempt object
-        return $attempt; 
     }
 
 
