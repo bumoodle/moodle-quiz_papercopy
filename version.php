@@ -25,7 +25,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version  = 2012082904;
+$plugin->version  = 2012101501;
 $plugin->requires = 2011060313;
 $plugin->component = 'quiz_papercopy';
 

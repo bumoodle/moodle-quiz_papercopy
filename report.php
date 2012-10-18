@@ -564,9 +564,8 @@ class quiz_papercopy_report extends quiz_default_report
         //create a new object, which stores information about the current batch
         $record = new stdClass();
         $record->usages = implode(',', $usages);
-        $record->delivery_method = 1; //TODO
-        $record->include_key = $include_key; 
         $record->quiz = $this->quiz->id;
+        $record->entrymethod = $entry_mode;
 
         //and insert that information into the database
         $id = $DB->insert_record(self::BATCH_TABLE, $record);

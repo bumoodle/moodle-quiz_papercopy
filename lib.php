@@ -201,6 +201,8 @@ class printable_copy_helper
     {
         global $PAGE, $OUTPUT;
 
+
+
         static $singleton = false;
 
         //ensure this function is only run once
@@ -221,8 +223,7 @@ class printable_copy_helper
         $PAGE->set_pagelayout('report');
 
         //start rendering the PDF
-        $test = $OUTPUT->header();
-        echo $test;
+        echo $OUTPUT->header();
     }
 
     public static function render_pdf()
@@ -230,7 +231,9 @@ class printable_copy_helper
         global $OUTPUT;
 
         //
-        webkit_pdf::send_embed_headers();
+        if(!optional_param('do_not_render', 0, PARAM_INT)) {
+            webkit_pdf::send_embed_headers();
+        }
 
         //Finish rendering the PDF; and stream it to the user.
         echo $OUTPUT->footer();
@@ -584,6 +587,20 @@ class printable_copy_helper
         return core_pdf_renderer::output_pdf($contents, true, 'quiz_'.$quba_id.'.pdf', self::render_barcode($quba_id));
     }
 
+    protected function render_question_identifier($usage, $slot) {
+
+        // Get the requisite information.
+        $quba_id = $usage->get_id();
+        $question = $usage->get_question($slot);
+        $question_attempt = $usage->get_question_attempt($slot);
+
+        // Create the URL to the Question ID image.
+        $url = new moodle_url('/mod/quiz/report/papercopy/lib/questionid.php', array('quba' => $quba_id, 'q' => $question->id, 'qa' => $question_attempt->get_database_id()));
+
+        // And return a link to the image.
+        return html_writer::tag('div', html_writer::empty_tag('img', array('src' => $url)), array('class' => 'questionid'));
+    }
+
     protected function render_barcode($value) {
         global $CFG;
 
@@ -622,6 +639,7 @@ class printable_copy_helper
             {
                 //echo html_writer::start_tag('page_header');
                 $header .= self::render_barcode($quba_id);
+
                 //echo html_writer::end_tag('page_header');
                 $OUTPUT->header = $header;
             }
@@ -636,8 +654,24 @@ class printable_copy_helper
             //output each question
             foreach($slots as $slot => $question)
             {
-                $qbuf = $usage->render_question($question, $options, $slot + 1);
-           
+                $qbuf = '';
+                
+                // If "include barcodes" is on, render the question-identifier code.
+                if($include_barcodes) {
+                    $qbuf .= html_writer::start_tag('div', array('class' => 'qwithidentifier'));
+                    $qbuf .= self::render_question_identifier($usage, $question);
+                }
+
+                // Render the question itself.
+                $qbuf .= $usage->render_question($question, $options, $slot + 1);
+
+                // If "include barcodes" is on, render the question-identifier code.
+                if($include_barcodes) {
+                    $qbuf .= html_writer::end_tag('div');
+                }
+
+
+
                 //if the core PDF renderer has purification turned off, purify the question locally
                 if(core_pdf_renderer::$do_not_purify)
                     $qbuf = core_pdf_renderer::clean_with_htmlpurify($qbuf);
