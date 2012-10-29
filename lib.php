@@ -597,17 +597,24 @@ class printable_copy_helper
         // Create the URL to the Question ID image.
         $url = new moodle_url('/mod/quiz/report/papercopy/lib/questionid.php', array('quba' => $quba_id, 'q' => $question->id, 'qa' => $question_attempt->get_database_id()));
 
+        $content = html_writer::empty_tag('img', array('src' => $url));
+        $content .= $quba_id.'-'.$question->id.'-'.$question_attempt->get_database_id();
+
         // And return a link to the image.
-        return html_writer::tag('div', html_writer::empty_tag('img', array('src' => $url)), array('class' => 'questionid'));
+        return html_writer::tag('div', $content, array('class' => 'questionid'));
     }
 
-    protected function render_barcode($value) {
+    protected function render_barcode($value, $text = '{barcode}') {
         global $CFG;
 
-        //$header .= html_writer::tag('barcode', '', array('value' => $quba_id, 'style' => 'width: 40mm; height: 7mm;', 'label' => 'label')); 
+        //Create the core barcode to be added.
+        $image = html_writer::empty_tag('img', array('src' => $CFG->wwwroot.'/mod/quiz/report/papercopy/lib/barcode.php?s='.urlencode($value)));
+
+        //And add the header text with the barcode added.
         $barcode = html_writer::start_tag('div', array('align' => 'center', 'id' => 'pageHeader'));
-        $barcode .= html_writer::empty_tag('img', array('src' => $CFG->wwwroot.'/mod/quiz/report/papercopy/lib/barcode.php?s='.urlencode($value)));
+        $barcode .= str_replace('{barcode}', $image, $text);
         $barcode .= html_writer::end_tag('div');
+
         return $barcode;
     }
 
