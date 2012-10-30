@@ -469,6 +469,12 @@ class quiz_papercopy_report extends quiz_default_report
         //require the user to be able to grade quizzes
         require_capability('mod/quiz:grade', $this->context);
 
+        //load the submitted form data
+        $data = $mform->get_data();
+
+
+        //FIXME FIXME replace me with mform data
+
         //entry options
         $overwrite = optional_param('overwrite', 0, PARAM_INT);
         $allow_cross_user = optional_param('allowcrossuser', 0, PARAM_INT);
@@ -482,8 +488,43 @@ class quiz_papercopy_report extends quiz_default_report
 
         //create a new Moodle Form, and use it to get the CSV data that was uploaded
         $mform = new quiz_papercopy_import_form($this->cm->id);
-        $csv = $mform->get_file_content('gradedata');
+        $gradedata = $mform->get_file_content('gradedata');
 
+        //Handle the uploaded data, depending on format.
+        switch($data->fileformat) 
+        {
+
+            //If this was a normal CSV, get all data from the CSV. 
+            case quiz_papercopy_upload_method::METHOD_CSV:
+                list($success, $errors) = $this->handle_upload_scantron($gradedata, $overwrite, $allow_cross_user);
+                break;
+
+            //Otherwise, try to use the 
+            case quiz_papercopy_upload_method::METHOD_MANUAL_SCANS:
+                list($success, $errors) = $this->handle_upload_scans($gradedata, $data->attachments, $overwrite, $allow_cross_user);
+                break;
+        }
+
+
+        //display the results
+        $this->display_import_result($success, $errors);
+
+        //add a continue link, and break
+        echo html_writer::link($this->base_url(), get_string('continue', 'quiz_papercopy'));
+
+    }
+
+    protected function handle_upload_scans($data, $attachments, $overwrite, $allow_cross_user) 
+    {
+        //parse the uploaded CSV file
+        $mappings = self::parse_scantron_csv($csv, true);
+
+        print_object($mappings);
+
+    }
+
+    protected function handle_upload_scantron($csv, $overwrite = false, $allow_cross_user = false) 
+    {
         //parse the uploaded CSV file
         $response_sets = self::parse_scantron_csv($csv, true);
 
@@ -525,11 +566,7 @@ class quiz_papercopy_report extends quiz_default_report
             }
         }
 
-        //display the results
-        $this->display_import_result($success, $errors);
-
-        //add a continue link, and break
-        echo html_writer::link($this->base_url(), get_string('continue', 'quiz_papercopy'));
+        return array($success, $errors);
 
     }
 

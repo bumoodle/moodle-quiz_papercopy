@@ -78,7 +78,9 @@ $string['answerkeynumber'] = 'Answer Key #{$a}';
 $string['importmethod'] = 'Upload Method';
 $string['fileformat'] = 'File Format';
 $string['csvfile'] = 'Response Data (Scantron CSV)';
+$string['scanfiles'] = 'Hand-Graded Scans';
 $string['gradedata'] = 'Response Data';
+$string['attachedfiles'] = 'Attachments/Scans';
 $string['importdata'] = 'Import Responses';
 
 $string['missingfile'] = 'You must specify a file containing responses to upload!';
