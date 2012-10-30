@@ -125,3 +125,6 @@ $string['confirmdelete'] = 'Are you sure you want to permenantly delete the sele
 
 
 $string['papercopybatch'] = 'Paper Copies (batch created on {$a})';
+
+//TODO: allow this to be customized?
+$string['name'] = 'Name ______________________________________';
