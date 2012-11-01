@@ -517,9 +517,7 @@ class quiz_papercopy_report extends quiz_default_report
 
         // Create a new ScannedResponseSet from the uploaded scans...
         $responses = ScannedResponseSet::create_from_uploads($data, $attachments, $this->quizobj);
-        $responses->enter_scanned_images();
-
-        //FIXME FIXME FIXME TODO add status indication!
+        return $responses->enter_scanned_images();
     }
 
 
@@ -633,6 +631,7 @@ class quiz_papercopy_report extends quiz_default_report
 
     /**
      * Returns a given user's name.
+     * FIXME: find a more paradigmatic way to do this
      */
     public static function get_user_name($user_id, $default = 'EMPTY')
     {

@@ -178,10 +178,10 @@ class ScannedResponseSet extends ResponseSet {
         foreach($csv_associations as $record) {
 
             // Get the user for the given attempt...
-            $user = self::get_user_by_username($record['ID'], 'id');
+            $user = self::get_user_by_username(trim($record['ID']), 'id');
 
             // Get the paper copy ID for the given attempt...
-            $usage_id = intval($record['Test']);
+            $usage_id = intval(trim($record['Test']));
 
             // And add the pair to the mapping.
             $associations[$usage_id] = $user;
@@ -218,25 +218,69 @@ class ScannedResponseSet extends ResponseSet {
         global $DB;
 
         $modified_usages = array();
+        $errors = array();
+        $successes = array();
 
         // Enter each of the images into the relevant attempt objects...
         foreach($this->images as $image) {
+            
+            //If we've previously encountered an error related to the given QUBA, 
+            if(isset($this->errors[$image->quba_id])) {
+                continue;
+            }
 
-            $modified = $this->enter_scanned_image($image);
+            try 
+            {
+                set_time_limit(30);
+
+                //Attempt to process the given image.
+                $modified = $this->enter_scanned_image($image); 
+
+                //If we didn't process the image correctly, raise an exception.
+                //TODO: message
+                if(!$modified) {
+                    print_object($image);
+                    throw new quiz_papercopy_invalid_usage_id_exception();
+                }
+
+                // Add the usage to our list of modified arrays.
+                $modified_usages[$image->quba_id] = $modified;
+            }
+            catch(quiz_papercopy_could_not_identify_exception $e) {
+
+                //Record the error message...
+                $errors[$image->quba_id] = array($image->question_attempt.' (Test '.$image->quba_id.')', get_string('couldnotidentify', 'quiz_papercopy'));
+
+                //And ensure we don't save the QUBA to the database.
+                unset($modified_usages[$image->quba_id]);                
+            }
+            catch(quiz_papercopy_invalid_usage_id_exception $e)  {
+
+                //Record the error message...
+                $errors[$image->quba_id] = array($image->question_attempt.' (Test '.$image->quba_id.')', get_string('couldnotidentify', 'quiz_papercopy'));
+
+                //And ensure we don't save the QUBA to the database.
+                unset($modified_usages[$image->quba_id]);                
+            }
 
             //FIXME: throw exception if not modified
 
-            // If we modified a new usage while adding this image, add it to the array of modified usages.
-            if(!in_array($modified, $modified_usages)) {
-                $modified_usages[] = $modified;
-            }
         }
 
-        // Save each of the usages...
+        // Save each of the quizzes:
         foreach($modified_usages as $usage) {
+
+            // 1) Create a Quiz Attempt, associating the paper copy with the given user.
             $usage_id = $usage->get_id();
             $this->attempts[$usage_id] = quiz_synchronization::build_attempt_from_usage($usage, $this->quiz, $this->associations[$usage_id]->id, $finish, true);
+
+            // 2) Add a record of the success to the sucess records
+            $user = $this->associations[$usage_id];
+            $successes[] = array(quiz_papercopy_report::get_user_name($user->id), format_float($usage->get_total_mark(), 2));
         }
+
+        //Return the list of successes and errors, for reporting.
+        return array($successes, $errors);
 
     }
 
@@ -244,17 +288,29 @@ class ScannedResponseSet extends ResponseSet {
 
         global $USER;
 
+
         // Get a handle on the global file storage engine.
         $fs = get_file_storage();
 
         // Get the usage that pertains to the given image.
         $usage = $this->get_usage($image->quba_id);
 
+        //FIXME add message
+        if(empty($this->associations[$image->quba_id])) {
+            throw new quiz_papercopy_could_not_identify_exception();
+        }
+        
         // Get the user object for the student who owns this attempt.
         $user = $this->associations[$image->quba_id];
 
+        //FIXME add message
+        if(empty($user)) {
+            throw new quiz_papercopy_could_not_identify_exception();
+        }
+
         // And figure out the context in which they will upload files.
-        $user_uploads_context = get_context_instance(CONTEXT_USER, $user->id);
+        //$user_uploads_context = get_context_instance(CONTEXT_USER, $user->id);
+        $user_uploads_context = get_context_instance(CONTEXT_USER, $USER->id);
 
         // Create a new draft record for the given item, in the same format as would have been
         // created had the user uploaded the file him/herself.
@@ -262,10 +318,12 @@ class ScannedResponseSet extends ResponseSet {
             'contextid' => $user_uploads_context->id,
             'component' => 'user',
             'filearea' => 'draft',
-            'filename' => 'Response_'.uniqid().'.png',
-            'filepath' => '/'
+            'filename' => 'Response_'.uniqid().'.jpg',
+            'filepath' => '/',
+            'itemid' => $image->question_attempt
         );
-        $file = $fs->create_file_from_storedfile($new_record, $image->file); 
+        //$file = $fs->create_file_from_storedfile($new_record, $image->file); 
+        $file = $fs->create_file_from_string($new_record, $image->file->get_content());
 
         //Search each of the possible slots for the given question attempt...
         foreach($usage->get_slots() as $slot) {
@@ -274,7 +332,7 @@ class ScannedResponseSet extends ResponseSet {
             if($usage->get_question_attempt($slot)->get_database_id() == $image->question_attempt) {
 
                 // Create a new "remote" file saver, which allows the submitter to be different than the respondant.
-                $file_saver = new question_file_saver($file->get_itemid(), 'question', 'response_attachments', null, $user);
+                $file_saver = new question_file_saver($file->get_itemid(), 'question', 'response_attachments');
 
                 // Pass it the newly created file.
                 $usage->process_action($slot, array('answer' => get_string('scanattached', 'quiz_papercopy'), 'answerformat' => 1, 'attachments' => $file_saver));
@@ -326,10 +384,10 @@ class ScannedResponseSet extends ResponseSet {
 
             // Create a new Image object from the captured data.
             $image = new stdClass;
-            $image->quba_id = intval($matches[1]);
-            $image->question = intval($matches[2]);
+            $image->quba_id = intval(trim($matches[1]));
+            $image->question = intval(trim($matches[2]));
             $image->question_attempt = intval($matches[3]);
-            $image->grade = empty($matches[4]) ? null : intval($matches[4]);
+            $image->grade = (trim($matches[4]) == '') ? null : intval($matches[4]);
             $image->file = $file;
 
             // Add the image to our collection.
