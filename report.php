@@ -19,7 +19,7 @@
  *
  * @package    quiz
  * @subpackage grading
- * @copyright  2006 Gustav Delius
+ * @copyright  2012 Binghamton University
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -28,6 +28,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/quiz/report/default.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/lib.php');
+require_once($CFG->dirroot . '/mod/quiz/report/papercopy/locallib.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/createcopies_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/importgrades_form.php');
 require_once($CFG->dirroot . '/mod/quiz/report/papercopy/associateusers_form.php');
@@ -102,6 +103,10 @@ class quiz_papercopy_report extends quiz_default_report
         $this->quizobj->preload_questions();
         $this->quizobj->load_questions();
 
+        //create the import and create forms
+        $importform = new quiz_papercopy_import_form($this->cm->id);
+        $createform = new quiz_papercopy_create_form($this->cm->id, count_enrolled_users($this->context));     
+        
         //get the current action, if one has been specified
         $action = optional_param('action', false, PARAM_ALPHA);
 
@@ -118,10 +123,11 @@ class quiz_papercopy_report extends quiz_default_report
         else if (!$action) 
         {
             $this->maintain_batches();
-            $this->display_index();
+            $this->display_index($importform, $createform);
         }
 
         //if we have an action, trigger the appropriate handler
+        //FIXME: replace this with multiple is_submitted blocks
         else
             switch($action)
             {
@@ -132,7 +138,7 @@ class quiz_papercopy_report extends quiz_default_report
                     confirm_sesskey();
 
                     //and handle the create action
-                    $this->handle_action_create();
+                    $this->handle_action_create($importform, $createform);
                     break;
 
                 //upload a file, and determine how to use it to get response content
@@ -142,7 +148,7 @@ class quiz_papercopy_report extends quiz_default_report
                     confirm_sesskey();
 
                     //and handle the upload
-                    $this->handle_action_upload();
+                    $this->handle_action_upload($importform);
                     break;
 
                 case 'associate':
@@ -456,7 +462,7 @@ class quiz_papercopy_report extends quiz_default_report
         //split the batch into usages
         $usages = explode(',',  $batch->usages);
 
-        $mform = new quiz_papercopy_associate_users($this->quiz->id, $this->cm, $batch, $this->context, $usages);
+        $mform = new quiz_papercopy_associate_users_form($this->quiz->id, $this->cm, $batch, $this->context, $usages);
         $mform->display();
 
     }
@@ -464,31 +470,25 @@ class quiz_papercopy_report extends quiz_default_report
     /**
      * Handle the mass upload of attempts upon submission of the Mass Upload form.
      */
-    protected function handle_action_upload()
+    protected function handle_action_upload($importform)
     {
         //require the user to be able to grade quizzes
         require_capability('mod/quiz:grade', $this->context);
 
         //load the submitted form data
-        $data = $mform->get_data();
-
-
-        //FIXME FIXME replace me with mform data
-
-        //entry options
-        $overwrite = optional_param('overwrite', 0, PARAM_INT);
-        $allow_cross_user = optional_param('allowcrossuser', 0, PARAM_INT);
+        $data = $importform->get_data();
 
         //advanced paramters: 
+        //TODO FIXME: implement these!
+        /*
         $error_if_not_first = optional_param('errorifnotfirst', false, PARAM_BOOL);
         $force_first = optional_param('forcefirst', false, PARAM_BOOL);
         $do_not_finish = optional_param('donotclose', false, PARAM_BOOL);
-
-        //TODO: support multiple upload types, multiple delimiters, mapping, etc.
+         */
 
         //create a new Moodle Form, and use it to get the CSV data that was uploaded
-        $mform = new quiz_papercopy_import_form($this->cm->id);
-        $gradedata = $mform->get_file_content('gradedata');
+        //$mform = new quiz_papercopy_import_form($this->cm->id);
+        $gradedata = $importform->get_file_content('gradedata');
 
         //Handle the uploaded data, depending on format.
         switch($data->fileformat) 
@@ -496,15 +496,14 @@ class quiz_papercopy_report extends quiz_default_report
 
             //If this was a normal CSV, get all data from the CSV. 
             case quiz_papercopy_upload_method::METHOD_CSV:
-                list($success, $errors) = $this->handle_upload_scantron($gradedata, $overwrite, $allow_cross_user);
+                list($success, $errors) = $this->handle_upload_scantron($gradedata, $data->overwrite, $data->allowcrossuser);
                 break;
 
             //Otherwise, try to use the 
             case quiz_papercopy_upload_method::METHOD_MANUAL_SCANS:
-                list($success, $errors) = $this->handle_upload_scans($gradedata, $data->attachments, $overwrite, $allow_cross_user);
+                list($success, $errors) = $this->handle_upload_scans($gradedata, $data->attachments, $data->overwrite, $data->allowcrossuser);
                 break;
         }
-
 
         //display the results
         $this->display_import_result($success, $errors);
@@ -514,14 +513,15 @@ class quiz_papercopy_report extends quiz_default_report
 
     }
 
-    protected function handle_upload_scans($data, $attachments, $overwrite, $allow_cross_user) 
-    {
-        //parse the uploaded CSV file
-        $mappings = self::parse_scantron_csv($csv, true);
+    protected function handle_upload_scans($data, $attachments, $overwrite, $allow_cross_user) {
 
-        print_object($mappings);
+        // Create a new ScannedResponseSet from the uploaded scans...
+        $responses = ScannedResponseSet::create_from_uploads($data, $attachments, $this->quizobj);
+        $responses->enter_scanned_images();
 
+        //FIXME FIXME FIXME TODO add status indication!
     }
+
 
     protected function handle_upload_scantron($csv, $overwrite = false, $allow_cross_user = false) 
     {
@@ -533,6 +533,7 @@ class quiz_papercopy_report extends quiz_default_report
         $errors = array();
 
         //parse each of the response sets
+        //FIXME REFACTOR: abstract column identifiers
         foreach($response_sets as $set)
         {
             try
@@ -574,7 +575,7 @@ class quiz_papercopy_report extends quiz_default_report
     /**
      * Handles the submission of the Create Copies form.
      */
-    protected function handle_action_create()
+    protected function handle_action_create($importform, $createform)
     {
         global $DB;
 
@@ -614,7 +615,7 @@ class quiz_papercopy_report extends quiz_default_report
         echo html_writer::empty_tag('meta', array('http-equiv' => 'Refresh', 'content' => '0;'.$url->out(false)));
 
         //and display the index
-        $this->display_index();
+        $this->display_index($importform, $createform);
     }
 
     /**
@@ -648,6 +649,7 @@ class quiz_papercopy_report extends quiz_default_report
         return fullname($user);
     }
 
+
     /**
      * Processes a set of Scantron-formatted responses, creating a quiz attempt, as though the user had entered these answers into Moodle directly.
      *
@@ -673,6 +675,8 @@ class quiz_papercopy_report extends quiz_default_report
 
         //get the ID for the attempt that would be created
         $new_id = $this->user_id_from_scantron($set);
+
+        //TODO FIXME: rewrite to use associate_attempt_with_user above
 
         //if we need this to be the first attempt, check for an existing attempt by this user at the current quiz
         if($error_if_not_first || $force_first)
@@ -725,11 +729,8 @@ class quiz_papercopy_report extends quiz_default_report
         foreach($slots as $slot)
             $usage->process_action($slot, array('answer' => $set['Question'.$slot] - 1));
 
-        //set the attempt's owner to reflect the student who filled out the scantron
-        $target_user = $this->user_id_from_scantron($set);
-
         //create a new attempt object, if requested, immediately close it, grading the attempt
-        $attempt = quiz_synchronization::build_attempt_from_usage($usage, $this->quizobj, $target_user, $finish, true);
+        $attempt = quiz_synchronization::build_attempt_from_usage($usage, $this->quizobj, $new_id, $finish, true);
 
         //return the user's grade and id, on success
         return array('grade' => $attempt->sumgrades, 'user' => $attempt->userid);
@@ -812,23 +813,44 @@ class quiz_papercopy_report extends quiz_default_report
         //break the CSV file into lines
         $lines = explode("\n", $csv_text);
 
+        $raw_data = array();
+
         //parse the file into raw CSV data
-        foreach($lines as $num => $line)
-            $raw_data[$num] = str_getcsv($line);
+        foreach($lines as $line) {
+
+            //Skip empty lines. 
+            if(empty($line)) {
+                continue;
+            }
+
+            $raw_data[] = str_getcsv($line);
+        }
 
         //array of data rows
         $data = array();
 
-        //get an easy reference to the header row
-        $header =& $raw_data[0];
+        //Extract the CSV headers
+        $header = array_shift($raw_data);
 
-        //process each of the data columns, skipping the first row, as it contains the headers
-        for($row = 1; $row < count($raw_data); ++$row)
+        //Strip all spaces from the column headers.
+        foreach($header as &$column_name) {
+            $column_name = trim($column_name);
+        }
+
+        //process each of the CSV entries
+        foreach($raw_data as $index => $row)
         {
             //replace each column number with its name
-            foreach($raw_data[$row] as $column => $content)
-                if(!$omit_sparse || $content != -1)
-                    $data[$row][$header[$column]] = trim($content);
+            foreach($row as $column => $content) {
+                if(!$omit_sparse || $content != -1) {
+
+                    // Get the column's name.
+                    $colname = ($header[$column]);
+                
+                    // And set the row's value appropriately.
+                    $data[$index][$colname] = trim($content);
+                }
+            }
         }
                 
         //return the new array of associative response arrays
@@ -1286,22 +1308,22 @@ class quiz_papercopy_report extends quiz_default_report
     /**
      * Displays the core ("index") page for the Paper Copy report.
      */
-    protected function display_index() 
+    protected function display_index($importform, $createform) 
     {
         global $OUTPUT;
 
         //calculate the class's enrollment; this determines the default number of papercopies to create
-        $enrollment = count_enrolled_users($this->context);
+        //$enrollment = 
 
         //output the header for "mass upload grades"
         echo $OUTPUT->heading(get_string('massuploadattempts', 'quiz_papercopy'));
-        $mform = new quiz_papercopy_import_form($this->cm->id);
-        $mform->display();
+        //$mform = new quiz_papercopy_import_form($this->cm->id);
+        $importform->display();
 
         //output the header for "create paper copies"
         echo $OUTPUT->heading(get_string('createcopies', 'quiz_papercopy'));
-        $mform = new quiz_papercopy_create_form($this->cm->id, $enrollment);     
-        $mform->display();
+        //$mform = new quiz_papercopy_create_form($this->cm->id, $enrollment);     
+        $createform->display();
     
         //output the batch display view
         echo $OUTPUT->heading(get_string('modifyattempts', 'quiz_papercopy'));

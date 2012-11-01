@@ -128,3 +128,6 @@ $string['papercopybatch'] = 'Paper Copies (batch created on {$a})';
 
 //TODO: allow this to be customized?
 $string['name'] = 'Name ______________________________________';
+
+$string['scanattached'] = 'Graded scan is attached below:';
+$string['autograde'] = 'Grade was automatically extracted from the scan above.';
