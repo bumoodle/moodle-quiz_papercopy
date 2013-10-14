@@ -266,7 +266,8 @@ class printable_copy_helper
         if($to_zip)
         {
             //zip each of the QUBAs and send them to the user
-            $cached_file = $this->zip_question_usage_by_activities($usage_ids, $batch_mode, true, 'quiz', $batch_id);
+            //TODO: Switch this to keyword arguments?
+            $cached_file = $this->zip_question_usage_by_activities($usage_ids, $batch_mode, true, 'quiz', $batch_id, null, true, true, $batch_info->entrymethod);
 
             //save the cached file for future use
             $this->save_prerendered($batch_id, $cached_file, $batch_mode);
@@ -274,7 +275,7 @@ class printable_copy_helper
         //otherwise, send a single PDF containing the entire batch
         else
         {
-            $this->print_question_usage_by_activities($usage_ids, $batch_mode);
+            $this->print_question_usage_by_activities($usage_ids, $batch_mode, $batch_info->entrymethod);
         }
     }
    
@@ -381,7 +382,15 @@ class printable_copy_helper
     }
 
 
-    public function zip_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $output = true, $prefix='quiz', $cache_id = 0, $progress_callback = null, $save = true, $allow_disconnect = true)
+    /**
+     * Creates a zip file containing the PDF for several paper copies, based on the provided Question Usages.
+     * Can return the full zip file, or can stream it directly to the user.
+     *
+     * TODO: Switch to keyword-args-esque array?
+     * 
+     * @param $quba_array array An array containing the qubaids for each QUBA to be included.
+     */
+    public function zip_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $output = true, $prefix='quiz', $cache_id = 0, $progress_callback = null, $save = true, $allow_disconnect = true, $include_barcodes = false)
     {
         global $DB;
 
@@ -432,7 +441,7 @@ class printable_copy_helper
             set_time_limit(1024);
 
             //convert the QUBA into a PDF
-            $pdf = $this->print_quba_to_pdf($quba_id, $batch_mode);
+            $pdf = $this->print_quba_to_pdf($quba_id, $batch_mode, $include_barcodes);
 
             //debug
             error_log("PDF copy ".$quba_id."\n");
@@ -516,7 +525,7 @@ class printable_copy_helper
     }
      
 
-    public function print_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL) 
+    public function print_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $include_barcodes = true) 
     {
         //set up PDF printing
         self::set_up_pdf();
@@ -528,11 +537,11 @@ class printable_copy_helper
             set_time_limit(1024);
 
             //then print the QUBA
-            $this->print_question_usage_by_activity($quba_id, $batch_mode);
+            $this->print_question_usage_by_activity($quba_id, $batch_mode, $include_barcodes);
         }
     }
 
-    public function print_question_usage_by_activity($quba_id, $batch_mode = quiz_papercopy_batch_mode::NORMAL)
+    public function print_question_usage_by_activity($quba_id, $batch_mode = quiz_papercopy_batch_mode::NORMAL, $include_barcodes = true)
     {
 
         //set up PDF printing
@@ -542,7 +551,7 @@ class printable_copy_helper
         require_capability('mod/quiz:viewreports', $this->context);
       
         //and call the internal printing method
-        $this->print_quba($quba_id, $batch_mode);
+        $this->print_quba($quba_id, $batch_mode, $include_barcodes);
     }
 
     static function create_pdf_header($title='Printable Copy') 
@@ -642,21 +651,21 @@ class printable_copy_helper
             $header = '';
 
             //start of page headers 
-            if($include_barcodes)
-            {
+            //if($include_barcodes)
+            //{
                 //echo html_writer::start_tag('page_header');
                 $header .= self::render_barcode($quba_id);
 
                 //echo html_writer::end_tag('page_header');
                 $OUTPUT->header = $header;
-            }
+            //}
 
             //bookmark, for easy access from a PDF viewer
             echo html_writer::tag('bookmark', '', array('title' => get_string('copynumber', 'quiz_papercopy', $quba_id), 'level' => '0'));
 
             //print the quiz's introduction
             if(!empty($this->quiz->intro) && $include_intro)
-                echo html_writer::tag('p', self::insert_ids($this->quiz->intro, $quba_id));
+                echo html_writer::tag('div', self::insert_ids($this->quiz->intro, $quba_id), array('class' => 'introduction'));
         
             //output each question
             foreach($slots as $slot => $question)
