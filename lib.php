@@ -627,7 +627,7 @@ class printable_copy_helper
         return $barcode;
     }
 
-
+    //TODO: Seriously, break this into multiple directed subfunctions.
     protected function print_quba($quba_id, $batch_mode, $include_barcodes = true, $include_intro = true, $include_page_numbers = true)
     {
         global $OUTPUT;
@@ -640,6 +640,9 @@ class printable_copy_helper
 
         //get an associative array, which indicates the questions which should be rendered
         $slots = $usage->get_slots();
+
+        // Generate a list of question numbers, for use in the question itself.
+        $questionnumbers = $this->generate_question_numbers($usage);
 
         //if we're not _only_ outputting a key, output the core of the quesiton
         if($batch_mode !== quiz_papercopy_batch_mode::KEY_ONLY)
@@ -666,9 +669,10 @@ class printable_copy_helper
             //print the quiz's introduction
             if(!empty($this->quiz->intro) && $include_intro)
                 echo html_writer::tag('div', self::insert_ids($this->quiz->intro, $quba_id), array('class' => 'introduction'));
-        
+
+
             //output each question
-            foreach($slots as $slot => $question)
+            foreach($slots as $question)
             {
                 $qbuf = '';
                 
@@ -679,7 +683,7 @@ class printable_copy_helper
                 }
 
                 // Render the question itself.
-                $qbuf .= $usage->render_question($question, $options, $slot + 1);
+                $qbuf .= $usage->render_question($question, $options, $questionnumbers[$question]);
 
                 // If "include barcodes" is on, render the question-identifier code.
                 if($include_barcodes) {
@@ -738,5 +742,45 @@ class printable_copy_helper
             echo html_writer::end_tag('page');
             
         }
+    }
+
+
+    /**
+     * Generates a set of question numbers for the given attempt.
+     *
+     * @param quesiton_usage_by_activity $usage The question usage that corresponds to this paper-copy attempt.
+     * @param int $startat An optional parameter, which specifies the first question number 
+     */
+    public static function generate_question_numbers($usage, $startat = 1) {
+
+        $questionnumbers = array();
+
+        // Start question numbering at the requested number.
+        $nextnumber = $startat;
+
+        // Build an array of "question numbers".
+        foreach($usage->get_slots() as $slot) {
+
+            // Get the question data for the given slot.
+            $question = $usage->get_question($slot);
+
+            // If the question should be given at least one number...
+            if ($question->length > 0) {
+
+                // ... assign it the next available number(s)...
+                $questionnumbers[$slot] = $nextnumber;
+
+                // ... and move our question number counter up appropriately.
+                $nextnumber += $question->length;
+            } 
+            // Otherwise, this is only an information blurb.
+            else {
+                $questionnumbers[$slot] = get_string('infoshort', 'quiz');
+            }
+        }
+
+        // Return the newly generated set of question numbers.
+        return $questionnumbers;
+
     }
 }

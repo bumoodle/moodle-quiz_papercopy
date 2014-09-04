@@ -176,7 +176,7 @@ class quiz_papercopy_report extends quiz_default_report
                     //roll into the index display
 
                 default:
-                    $this->display_index();
+                    $this->display_index($importform, $createform);
 
             }
 
@@ -515,6 +515,8 @@ class quiz_papercopy_report extends quiz_default_report
 
     protected function handle_upload_scans($data, $attachments, $overwrite, $allow_cross_user) {
 
+        print_object($attachments);
+
         // Create a new ScannedResponseSet from the uploaded scans...
         $responses = ScannedResponseSet::create_from_uploads($data, $attachments, $this->quizobj);
         return $responses->enter_scanned_images();
@@ -724,9 +726,24 @@ class quiz_papercopy_report extends quiz_default_report
         //get an associative array, which indicates the order in which questions were 
         $slots = $usage->get_slots();
 
+        // Get an associative array which maps slots to question numbers.
+        $questionnumber = printable_copy_helper::generate_question_numbers($usage);
+
         //enter the student's answers for each of the questions
-        foreach($slots as $slot)
-            $usage->process_action($slot, array('answer' => $set['Question'.$slot] - 1));
+        foreach($slots as $slot) {
+            
+            // Get the question number for the given "slot".
+            $question = $questionnumber[$slot];
+
+            // If this doesn't appear to be a numbered question (e.g. if it's an information block),
+            // skip processing data for this question.
+            if(!is_numeric($question)) {
+                continue;
+            }
+
+            // Process the data for the given question.
+            $usage->process_action($slot, array('answer' => $set['Question'.$question] - 1));
+        }
 
         //create a new attempt object, if requested, immediately close it, grading the attempt
         $attempt = quiz_synchronization::build_attempt_from_usage($usage, $this->quizobj, $new_id, $finish, true);
@@ -735,6 +752,8 @@ class quiz_papercopy_report extends quiz_default_report
         return array('grade' => $attempt->sumgrades, 'user' => $attempt->userid);
 
     }
+
+
 
     /**
      * Attempts to get a Moodle user_id, given the information a user has provided.
@@ -1078,9 +1097,9 @@ class quiz_papercopy_report extends quiz_default_report
 
         //if we took the first or last element off, put it back
         if($fix_first)
-            array_unshift($first);
+            array_unshift($keys, $first);
         if($fix_last)
-            array_push($last);
+            array_push($keys, $last);
 
         //create a new, array to be filled with randomized values
         $random = array(); 

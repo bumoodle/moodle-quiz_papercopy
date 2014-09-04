@@ -178,7 +178,12 @@ class ScannedResponseSet extends ResponseSet {
         foreach($csv_associations as $record) {
 
             // Get the user for the given attempt...
-            $user = self::get_user_by_username(trim($record['ID']), 'id');
+            $raw_id = trim($record['ID']);
+            $user = self::get_user_by_username($raw_id, 'idnumber') ?:
+                    self::get_user_by_username($raw_id, 'username');
+
+            print_object($user);
+            print_object($user);
 
             // Get the paper copy ID for the given attempt...
             $usage_id = intval(trim($record['Test']));
@@ -239,7 +244,6 @@ class ScannedResponseSet extends ResponseSet {
                 //If we didn't process the image correctly, raise an exception.
                 //TODO: message
                 if(!$modified) {
-                    print_object($image);
                     throw new quiz_papercopy_invalid_usage_id_exception();
                 }
 
@@ -288,7 +292,6 @@ class ScannedResponseSet extends ResponseSet {
 
         global $USER;
 
-
         // Get a handle on the global file storage engine.
         $fs = get_file_storage();
 
@@ -299,7 +302,7 @@ class ScannedResponseSet extends ResponseSet {
         if(empty($this->associations[$image->quba_id])) {
             throw new quiz_papercopy_could_not_identify_exception();
         }
-        
+
         // Get the user object for the student who owns this attempt.
         $user = $this->associations[$image->quba_id];
 
@@ -367,6 +370,7 @@ class ScannedResponseSet extends ResponseSet {
     protected static function images_from_stored_files($files) {
 
         $images = array();
+        $bad_files = array();
 
         // Sort each of the sorted files by its filename, which _should_ contain the Usage ID,
         // Question ID, and Question Attempt ID; and potentially a grade.
@@ -401,15 +405,15 @@ class ScannedResponseSet extends ResponseSet {
     }
 
     /**
-     * Returns a user record for the user with the given username.
+     * Returns a user record for the user with the given data field.
      * 
      * @param string $username The username with which to query.
      * @param string $fields The fields of the user object which should be populated from the data
      * @return void
      */
-    protected static function get_user_by_username($username, $fields=null) {
+    protected static function get_user_by_username($username, $field_to_use='username', $fields='id') {
         global $DB;
-        return $DB->get_record('user', array('username' => $username), $fields);
+        return $DB->get_record('user', array($field_to_use => $username), $fields);
     }
 
 
