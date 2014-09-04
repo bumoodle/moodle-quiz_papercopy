@@ -91,6 +91,7 @@ $string['allowcrossuser'] = 'Allow attempts to be moved from one user to another
 $string['donotclose'] = 'Don\'t close the quiz after the user\'s responses have been uploaded.';
 
 $string['invalidusage'] = 'Test ID provided was invalid!';
+$string['invalidtest'] = 'Test ID provided was invalid!';
 $string['invalidformat'] = 'The File ID provided did not correspond to a valid Usage & question!';
 $string['couldnotidentify'] = 'Could not determine the user to which this test belongs.';
 $string['attemptexists'] = 'A grade was already entered for this user (and overwrite was not set.)';
