@@ -116,8 +116,9 @@ class quiz_papercopy_report extends quiz_default_report
         //--- display the report:
 
         //if there are no questions in the quiz, display an error message
-        if (!quiz_questions_in_quiz($quiz->questions)) 
+        if (!quiz_has_questions($quiz->id)) {
             echo quiz_no_questions_message($quiz, $cm, $this->context);
+        }
 
         //otherwise, if we have no action, display the index page
         else if (!$action) 
