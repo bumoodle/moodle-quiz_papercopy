@@ -516,8 +516,6 @@ class quiz_papercopy_report extends quiz_default_report
 
     protected function handle_upload_scans($data, $attachments, $overwrite, $allow_cross_user) {
 
-        print_object($attachments);
-
         // Create a new ScannedResponseSet from the uploaded scans...
         $responses = ScannedResponseSet::create_from_uploads($data, $attachments, $this->quizobj);
         return $responses->enter_scanned_images();
@@ -916,9 +914,10 @@ class quiz_papercopy_report extends quiz_default_report
 
         //get an array of questions in the current quiz
         $quiz_questions = $this->quizobj->get_questions();
+        $paginated_questions = self::paginate_questions($quiz_questions, $this->quiz->id);
 
         //randomize the question order, as requested
-        $quiz_questions = self::shuffle_questions($quiz_questions, $this->quiz->questions, $shuffle_mode, $fix_descriptions, $fix_first, $fix_last);
+        $quiz_questions = self::shuffle_questions($quiz_questions, $paginated_questions, $shuffle_mode, $fix_descriptions, $fix_first, $fix_last);
 
         //for each question in our online quiz
         foreach($quiz_questions as $slot => $qdata)
@@ -944,17 +943,14 @@ class quiz_papercopy_report extends quiz_default_report
      * Shuffles the given question set according to the rules specified by the user. See {@link quiz_papercopy_shuffle_modes}. 
      *
      * @param array $questions          An associative array, whose keys represent slots, and whose values represent quesiton data.
-     * @param array $pagination         An array of Moodle-formatted question order and pagination information. Page boundaries are denoted by null (0) QIDs.
+     * @param array $pages              An nested array of Moodle question objects, as sorted by page.
      * @param int   $shuffle_mode       An integer from the enumeration quiz_papercopy_shuffle_modes which determines the method by which the questions are shuffled.
      * @param bool  $fix_descriptions   If true, description elements which are the first element on a page will be fixed in place.
      *
      * @return array    An associative array of questions to be included in the quiz.
      */
-    static function shuffle_questions($questions, $pagination = array(), $shuffle_mode = quiz_papercopy_shuffle_modes::MODE_SHUFFLE_IGNORE_PAGES, $fix_descriptions = false, $fix_first = false, $fix_last = false)
+    static function shuffle_questions($questions, $pages, $shuffle_mode = quiz_papercopy_shuffle_modes::MODE_SHUFFLE_IGNORE_PAGES, $fix_descriptions = false, $fix_first = false, $fix_last = false)
     {
-
-        //break the questions into a list of pages
-        $pages = self::split_questions_into_pages($questions, explode(',', $pagination)); 
 
         //and shuffle according to the shuffle mode
         switch($shuffle_mode)
@@ -975,7 +971,6 @@ class quiz_papercopy_report extends quiz_default_report
 
             //shuffle within pages, leaving pages in their original order
             case quiz_papercopy_shuffle_modes::MODE_SHUFFLE_WITHIN_PAGE:
-
 
                 //for each page in the quiz, shuffle the page's contents:
                 foreach($pages as $num => $page)
@@ -1033,6 +1028,41 @@ class quiz_papercopy_report extends quiz_default_report
                 $slot = self::array_search_callback($questions, function($needle) use ($item) { return $item == $needle->id; });
                 $pages[$current_page][$slot] = $questions[$slot]; 
             }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * Creates nested array of questions "pages"-- the outer array represents a collection of "pages",
+     * where each page is an array of ordered question objects.
+     *
+     * @param array   $questions An associate array mapping slot numbers to question objects for the given quiz.
+     * @param integer $quiz_id The ID for the current quiz.
+     */ 
+    static function paginate_questions($questions, $quiz_id) {
+
+        global $DB;
+
+        // Create a new associative array that will map page numbers to the question objects
+        // for a given page, in order.
+        $pages = array();
+
+        // Retreive all questions "slots" associated with the given quiz, as these contain
+        // our pagination information. We'll sort these by slot, which determines their render order.
+        $slot_mappings = $DB->get_records_sql('SELECT slot, page, questionid FROM {quiz_slots} WHERE quizid = ? ORDER BY slot', array($quiz_id));
+
+        //For each page mapping:
+        foreach($slot_mappings as $mapping) {
+
+            //If we don't already have an object for the given page, add it.
+            if(!array_key_exists($mapping->page, $pages)) {
+                $pages[$mapping->page] = array();
+            }
+
+            //And add the given question object to the appropriate slot.
+            $pages[$mapping->page][] = $questions[$mapping->questionid];
+            
         }
 
         return $pages;
