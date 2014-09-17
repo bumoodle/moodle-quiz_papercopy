@@ -250,6 +250,16 @@ class ScannedResponseSet extends ResponseSet {
                 // Add the usage to our list of modified arrays.
                 $modified_usages[$image->quba_id] = $modified;
             }
+            catch(quiz_papercopy_malformed_scantron_exception $e) {
+            
+
+                //Record the error message...
+                $errors[$image->quba_id] = array($image->question_attempt.' (Test '.$image->quba_id.')', get_string('malformedscantron', 'quiz_papercopy'));
+
+                //And ensure we don't save the QUBA to the database.
+                unset($modified_usages[$image->quba_id]);                
+
+            }
             catch(quiz_papercopy_could_not_identify_exception $e) {
 
                 //Record the error message...

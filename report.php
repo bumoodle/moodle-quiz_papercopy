@@ -42,6 +42,7 @@ class quiz_papercopy_invalid_usage_id_exception extends exception {}
 class quiz_papercopy_attempt_exists_exception extends exception {}
 class quiz_papercopy_conflicting_users_exception extends exception {}
 class quiz_papercopy_not_first_attempt_when_required extends exception {}
+class quiz_papercopy_malformed_scantron_exception extends exception {}
 class quiz_papercopy_benign_row_exception extends exception {}
 
 /**
@@ -741,7 +742,7 @@ class quiz_papercopy_report extends quiz_default_report
             }
 
             // Process the data for the given question.
-            $usage->process_action($slot, array('answer' => $set['Question'.$question] - 1));
+            $usage->process_action($slot, self::response_from_scantron($set['Question'.$question], $usage->get_question($slot)));
         }
 
         //create a new attempt object, if requested, immediately close it, grading the attempt
@@ -750,6 +751,36 @@ class quiz_papercopy_report extends quiz_default_report
         //return the user's grade and id, on success
         return array('grade' => $attempt->sumgrades, 'user' => $attempt->userid);
 
+    }
+
+    protected static function response_from_scantron($scantron_entry, $question) {
+
+        //If we have a raw scantron entry, return a well-formed answer for it.
+        if($question instanceof qtype_multichoice_single_question) {
+            return array('answer' => intval($scantron_entry) - 1);
+        }
+
+        //Otherwise, we likely have a multi-answer multiple choice. Parse it.
+        //TODO: Handle other question types in here?
+        else {
+
+            $response = array();
+
+            //Get the list of answer numbers that the student selected...
+            $numbers = explode(',', substr($scantron_entry, 1, -1));
+
+            //... converted to a list of integers, and offset by one to match our internal representation.
+            array_walk($numbers, function (&$number) { $number = intval($number) - 1; });
+
+            // FIXME Generalize this? This is a bit of a hack, as it's specific to our five-bubble scantrons.
+            // This should be rerwitten to allow scantrons with more bubbles.
+            for($i = 0; $i < 5; ++$i) {
+                //Determine if the given choice number is included in the array of selected choices.
+                $response['choice' . $i] = in_array($i, $numbers) ? '1' : '0';
+            }
+
+            return $response;
+        } 
     }
 
 

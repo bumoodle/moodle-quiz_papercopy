@@ -133,3 +133,6 @@ $string['name'] = 'Name ______________________________________';
 
 $string['scanattached'] = 'Graded scan is attached below:';
 $string['autograde'] = 'Grade was automatically extracted from the scan above.';
+
+
+$string ['malformedscantron'] = 'The scantron entry provided was invalid!';
