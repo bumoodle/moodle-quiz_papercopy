@@ -110,11 +110,11 @@ class quiz_papercopy_report extends quiz_default_report
         //if there are no questions in the quiz, display an error message
         // TODO Ray - see if $quizobj->get_questions() is a suitable replacement
         /*
-        if (!quiz_questions_in_quiz($quiz->questions)) 
+        if (!quiz_questions_in_quiz($quiz->questions)) {
             echo quiz_no_questions_message($quiz, $cm, $this->context);
         */
-
         if (false) {
+
         //otherwise, if we have no action, display the index page
         } else if (!$action)
         {
