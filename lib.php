@@ -507,8 +507,20 @@ class printable_copy_helper
 
     public function print_question_usage_by_activities($quba_array, $batch_mode = quiz_papercopy_batch_mode::NORMAL) 
     {
+         //set the content type to application/zip
+        header('Content-Type: application/pdf');
+
+        //and apply a matching filename
+        header('Content-Disposition: attachment; filename="PaperCopies.pdf"');
+
         //set up PDF printing
         self::set_up_pdf();
+
+        //start output buffering
+        ob_start();
+
+        //print the actual QUBA
+        // $this->print_quba($quba_id, $batch_mode, $include_barcodes, $include_intro);
 
         //print each QUBA in the array, 
         foreach($quba_array as $quba_id)
@@ -519,6 +531,9 @@ class printable_copy_helper
             //then print the QUBA
             $this->print_question_usage_by_activity($quba_id, $batch_mode);
         }
+
+        $contents = ob_get_clean();
+        echo core_pdf_renderer::output_pdf($contents, true);
     }
 
     public function print_question_usage_by_activity($quba_id, $batch_mode = quiz_papercopy_batch_mode::NORMAL)
