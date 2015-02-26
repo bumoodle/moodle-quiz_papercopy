@@ -93,6 +93,7 @@ elseif($cm_id) {
 
             //print the entire batch
             $printer->print_batch($batch_id, quiz_papercopy_batch_mode::NORMAL, $as_zip);
+            exit;
         }
 
         //if we just finished printing a zip,
