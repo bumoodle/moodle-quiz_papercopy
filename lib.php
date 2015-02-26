@@ -608,7 +608,7 @@ class printable_copy_helper
             foreach($slots as $slot => $question)
             {
                 $qbuf =  $usage->render_question($question, $options, $slot + 1);
-            
+
                 //if the core PDF renderer has purification turned off, purify the question locally
                 if(core_pdf_renderer::$do_not_purify)
                     $qbuf = core_pdf_renderer::clean_with_htmlpurify($qbuf);
