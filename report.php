@@ -90,7 +90,7 @@ class quiz_papercopy_report extends quiz_default_report
         $this->quiz = $quiz;
         $this->cm = $cm;
         $this->course = $course;
-        $this->context = get_context_instance(CONTEXT_MODULE, $cm->id);
+        $this->context = context_module::instance($cm->id);
         
         //get a reference to the current quiz
         $this->quizobj = $this->get_quiz_object();
