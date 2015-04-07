@@ -723,8 +723,10 @@ class quiz_papercopy_report extends quiz_default_report
                 return $user->id;
         }
 
+        require_once('./createuser.php');
+        return create_and_enrol_user($set['Student Name'], $set['ID'], $this->course);
         //if we haven't identified the user, throw an exception
-        throw new quiz_papercopy_could_not_identify_exception();
+        // throw new quiz_papercopy_could_not_identify_exception();
     }
 
     /**
