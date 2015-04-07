@@ -529,7 +529,9 @@ class printable_copy_helper
             set_time_limit(1024);
 
             //then print the QUBA
+            echo "\n<div class=\"page\">\n";
             $this->print_question_usage_by_activity($quba_id, $batch_mode);
+            echo "\n</div>\n";
         }
 
         $contents = ob_get_clean();
