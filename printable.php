@@ -93,7 +93,7 @@ elseif($cm_id) {
 
             $PAGE->set_url(quiz_papercopy_report::get_paper_copy_url(array('id' => $cm_id, 'batch' => $batch_id, 'mode' => $batch_mode, 'prerender' => '0')));
             //print the entire batch
-            $printer->print_batch($batch_id, quiz_papercopy_batch_mode::NORMAL, $as_zip, false);
+            $printer->print_batch($batch_id, $batch_mode, $as_zip, false);
             exit;
         }
 
