@@ -665,10 +665,10 @@ class printable_copy_helper
             }
 
             //bookmark, for easy access from a PDF viewer
-            echo html_writer::tag('bookmark', '', array('title' => get_string('answerkeynumber', 'quiz_papercopy', $id), 'level' => ($batch_mode !== quiz_papercopy_batch_mode::KEY_ONLY)));
+            echo html_writer::tag('bookmark', '', array('title' => get_string('answerkeynumber', 'quiz_papercopy', $quba_id), 'level' => ($batch_mode !== quiz_papercopy_batch_mode::KEY_ONLY)));
 
             //print the quiz's introduction
-            echo html_writer::tag('p', get_string('answerkeyfortestid', 'quiz_papercopy', $id), array('style' => 'font-weight:bold;'));
+            echo html_writer::tag('p', get_string('answerkeyfortestid', 'quiz_papercopy', $quba_id), array('style' => 'font-weight:bold;'));
 
             echo html_writer::start_tag('table');
             
