@@ -90,7 +90,7 @@ class quiz_papercopy_report extends quiz_default_report
         $this->quiz = $quiz;
         $this->cm = $cm;
         $this->course = $course;
-        $this->context = get_context_instance(CONTEXT_MODULE, $cm->id);
+        $this->context = context_module::instance($cm->id);
         
         //get a reference to the current quiz
         $this->quizobj = $this->get_quiz_object();
@@ -108,11 +108,10 @@ class quiz_papercopy_report extends quiz_default_report
         //--- display the report:
 
         //if there are no questions in the quiz, display an error message
-        if (!quiz_questions_in_quiz($quiz->questions)) 
+        if (!$this->quizobj->get_questions() ) {
             echo quiz_no_questions_message($quiz, $cm, $this->context);
-
         //otherwise, if we have no action, display the index page
-        else if (!$action) 
+        } else if (!$action)
         {
             $this->maintain_batches();
             $this->display_index();
@@ -1274,7 +1273,7 @@ class quiz_papercopy_report extends quiz_default_report
            $answer_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'mode' => 'key' ));
 
            //compose the download URL
-           $download_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'zip' => ($usage_count != 1)));
+           $download_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id));
            $download_with_keys_url = new moodle_url('/mod/quiz/report/papercopy/printable.php', array('id' => $this->cm->id, 'batch' => $batch->id, 'mode' => 'withkey' ));
 
            //and add a table row
