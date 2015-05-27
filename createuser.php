@@ -41,7 +41,7 @@ function create_user($ridnumber, $fname, $sname) {
                          'firstname' => $fname,
                          'lastname' => $sname,
                          'auth' => $authtype,
-                         'idnumber' => 'escert' . $ridnumber,
+                         'idnumber' => $ridnumber,
                          'description' => "$from"
                      );
 
