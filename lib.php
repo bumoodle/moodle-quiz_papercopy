@@ -630,8 +630,12 @@ class printable_copy_helper
             echo html_writer::tag('bookmark', '', array('title' => get_string('copynumber', 'quiz_papercopy', $quba_id), 'level' => '0'));
 
             //print the quiz's introduction
-            if(!empty($this->quiz->intro) && $include_intro)
-                echo html_writer::tag('div', self::insert_ids($this->quiz->intro, $quba_id), array('class' => 'introduction'));
+            if(!empty($this->quiz->intro) && $include_intro) {
+                $introtext = $this->quiz->intro;
+                $introtext = file_rewrite_pluginfile_urls($this->quiz->intro, 'pluginfile.php',
+                        $this->context->id, 'mod_quiz', 'intro', null);
+                echo html_writer::tag('div', self::insert_ids($introtext, $quba_id), array('class' => 'introduction'));
+            }
 
             //output each question
             foreach($slots as $slot => $question)
